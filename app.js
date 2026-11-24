@@ -1,18 +1,18 @@
 'use strict';
 const $=id=>document.getElementById(id), key='migraine-tracker-v1';
 const localDate=(d=new Date())=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-const today=localDate(); let entries={},level='',med='',installPrompt;
+const today=localDate(); let entries={},level='',med='',installPrompt,fresh=false;
 function status(s){$('status').textContent=s}
 function validDate(s){return typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s)&&!isNaN(new Date(s+'T12:00:00'))&&localDate(new Date(s+'T12:00:00'))===s}
 function validate(data){if(!data||typeof data!=='object'||Array.isArray(data))throw Error('Invalid backup');for(const [d,e] of Object.entries(data)){if(!validDate(d)||!e||!['none','green','yellow','red'].includes(e.level)||!['yes','no'].includes(e.med)||typeof e.notes!=='string'||e.notes.length>4000)throw Error('Invalid entry: '+d)}return data}
 try{entries=validate(JSON.parse(localStorage.getItem(key)||'{}'))}catch(e){status('Could not read saved data. Restore a backup if available.')}
 function persist(next){try{localStorage.setItem(key,JSON.stringify(next));entries=next;return true}catch(e){status('Unable to save. Browser storage may be unavailable.');return false}}
 function tab(id){for(const s of ['today','history','reports','settings'])$(s).hidden=s!==id;document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.tab===id));if(id==='history')history();if(id==='reports')report()}
-function sync(){document.querySelectorAll('[data-level]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.level===level));document.querySelectorAll('[data-med]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.med===med));$('save').disabled=!level||!med||!validDate($('date').value)||$('date').value>localDate();$('remove').hidden=!entries[$('date').value]}
-function load(d){$('date').value=d;const e=entries[d];level=e?.level||'';med=e?.med||'';$('notes').value=e?.notes||'';sync()}
+function sync(){document.querySelectorAll('[data-level]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.level===level));document.querySelectorAll('[data-med]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.med===med));$('save').disabled=!level||!med||!validDate($('date').value)||$('date').value>localDate();$('remove').hidden=fresh||!entries[$('date').value]}
+function load(d){fresh=false;$('date').value=d;const e=entries[d];level=e?.level||'';med=e?.med||'';$('notes').value=e?.notes||'';sync()}
 $('date').max=today;$('historyMonth').value=$('reportMonth').value=today.slice(0,7);load(today);tab('today');
 document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>tab(b.dataset.tab));document.querySelectorAll('[data-level]').forEach(b=>b.onclick=()=>{level=b.dataset.level;sync()});document.querySelectorAll('[data-med]').forEach(b=>b.onclick=()=>{med=b.dataset.med;sync()});$('date').onchange=()=>load($('date').value);
-$('save').onclick=()=>{const d=$('date').value;if(!validDate(d)||d>localDate()||!level||!med)return;if(persist({...entries,[d]:{level,med,notes:$('notes').value}})){sync();status('Saved '+d)}};
+$('save').onclick=()=>{const d=$('date').value;if(!validDate(d)||d>localDate()||!level||!med)return;if(entries[d]&&fresh&&!confirm('Replace the existing check-in for '+d+'?'))return;if(persist({...entries,[d]:{level,med,notes:$('notes').value}})){fresh=true;level='';med='';$('notes').value='';$('date').max=localDate();$('date').value=localDate();sync();$('remove').hidden=true;status('Saved '+d+'. Start a new check-in or select a date to edit.')}};
 $('remove').onclick=()=>{const d=$('date').value;if(!confirm('Delete this daily entry?'))return;const next={...entries};delete next[d];if(persist(next)){load(d);status('Entry deleted.')}};
 function days(m){if(!/^\d{4}-\d{2}$/.test(m))return [];const [y,n]=m.split('-').map(Number);if(n<1||n>12)return [];return Array.from({length:new Date(y,n,0).getDate()},(_,i)=>m+'-'+String(i+1).padStart(2,'0'))}
 function node(tag,text){const n=document.createElement(tag);n.textContent=text;return n}
